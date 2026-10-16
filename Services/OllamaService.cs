@@ -31,7 +31,7 @@ public sealed class OllamaService : IOllamaService
     {
         _http = http;
         _logger = logger;
-        _model = string.IsNullOrWhiteSpace(options.Value.Model) ? "llama3.2" : options.Value.Model.Trim();
+        _model = string.IsNullOrWhiteSpace(options.Value.Model) ? "qwen2.5:7b" : options.Value.Model.Trim();
     }
 
     public async Task<OllamaReceipt> StructureAsync(string rawText, CancellationToken cancellationToken)
