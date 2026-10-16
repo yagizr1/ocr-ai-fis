@@ -1,0 +1,1 @@
+{"model":"llama3","prompt":"Sadece su JSON: {\"firma_adi\":\"TEST\",\"tarih\":\"2026-10-15\",\"fis_no\":\"A1\",\"kalemler\":[{\"urun_adi\":\"EKMEK\",\"adet\":1,\"birim_fiyat\":10,\"toplam\":10}],\"genel_toplam\":10}","stream":false,"format":"json","options":{"temperature":0,"num_predict":120}}

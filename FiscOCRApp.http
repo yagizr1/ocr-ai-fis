@@ -1,0 +1,6 @@
+@FiscOCRApp_HostAddress = http://localhost:5075
+
+GET {{FiscOCRApp_HostAddress}}/api/documents
+Accept: application/json
+
+###

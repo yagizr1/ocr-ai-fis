@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FiscOCR — Mali Belge Aktarım Platformu</title>
+  <style>
+    :root {
+      --sidebar: #243039;
+      --sidebar-2: #1c242c;
+      --sidebar-text: #c5ccd3;
+      --sidebar-muted: #8b949e;
+      --sidebar-active: #33414c;
+      --accent: #2f6f8f;
+      --accent-strong: #255a75;
+      --bg: #e4e9ee;
+      --panel: #ffffff;
+      --ink: #243039;
+      --muted: #66707a;
+      --line: #d5dce3;
+      --head: #eef2f5;
+      --soft: #f6f8fa;
+      --ok: #1f7a45;
+      --bad: #9b3a3a;
+      --warn: #8a5a12;
+      --shadow: 0 1px 2px rgba(28, 36, 43, 0.06);
+      --header-h: 58px;
+      --sidebar-w: 240px;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #e8edf1 0%, var(--bg) 40%);
+      font-size: 13px;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    h1, p { margin: 0; }
+    .app { display: flex; min-height: 100%; }
+    .sidebar {
+      width: var(--sidebar-w); flex: 0 0 var(--sidebar-w);
+      background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-2) 100%);
+      color: var(--sidebar-text); display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .brand {
+      display: flex; gap: 10px; align-items: center; padding: 16px;
+      background: rgba(0,0,0,0.18); border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .mark {
+      width: 34px; height: 34px; border-radius: 4px;
+      background: linear-gradient(145deg, #4d7f9a, #2f6f8f);
+      color: #fff; display: grid; place-items: center; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .brand strong { display: block; color: #fff; font-size: 14px; font-weight: 650; }
+    .brand span { color: var(--sidebar-muted); font-size: 11px; }
+    .nav { padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-label { margin: 10px 8px 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sidebar-muted); }
+    .nav-btn {
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      border: 0; background: transparent; color: var(--sidebar-text); border-radius: 3px;
+      padding: 9px 10px; border-left: 3px solid transparent;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.04); }
+    .nav-btn.active { background: var(--sidebar-active); color: #fff; border-left-color: #8eb4c8; }
+    .side-foot {
+      margin-top: auto; padding: 14px 16px 16px; color: var(--sidebar-muted);
+      font-size: 11px; line-height: 1.45; border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .topbar {
+      height: var(--header-h); background: rgba(244,246,248,0.96); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line); box-shadow: inset 0 2px 0 var(--accent);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+      position: sticky; top: 0; z-index: 5;
+    }
+    .crumb { color: var(--muted); font-size: 11px; }
+    .topbar h1 { font-size: 16px; font-weight: 650; margin-top: 2px; }
+    .top-meta { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+    .badge {
+      border: 1px solid var(--line); background: #fff; color: var(--accent-strong);
+      border-radius: 3px; padding: 3px 8px; font-size: 11px; font-weight: 650;
+    }
+    .content { padding: 16px 20px 28px; display: flex; flex-direction: column; gap: 14px; }
+    .hero-band {
+      display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;
+    }
+    .stat-card, .panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 4px; box-shadow: var(--shadow);
+    }
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .stat-card { padding: 12px 14px; }
+    .stat-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 650; }
+    .stat-card .value { font-size: 20px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .upload-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr); gap: 14px; }
+    .upload-grid > .panel { display: flex; flex-direction: column; }
+    .panel-h {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--soft); font-weight: 650;
+    }
+    .dropzone {
+      margin: 14px; flex: 1; min-height: 200px; border: 1px dashed #b7c0c8; background: #fbfcfd;
+      border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; gap: 6px; padding: 24px 16px; color: var(--muted);
+    }
+    .dropzone strong { color: var(--ink); font-size: 14px; font-weight: 650; }
+    .dropzone.dragover { border-color: var(--accent); background: #f3f7fa; color: var(--accent-strong); }
+    .file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .queue { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow: auto; }
+    .queue-item {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      background: var(--soft); border: 1px solid var(--line); padding: 6px 10px; border-radius: 3px;
+    }
+    .queue-item.active { border-color: var(--accent); background: #f0f6fa; }
+    .queue-item.done { opacity: 0.72; }
+    .linkish { border: 0; background: transparent; color: var(--accent-strong); padding: 0; font-weight: 650; }
+    .preview-stage {
+      margin: 14px; flex: 1; min-height: 200px; background: #f3f5f7; border: 1px solid var(--line);
+      display: grid; place-items: center; overflow: hidden; border-radius: 4px;
+    }
+    .preview-stage img { max-width: 100%; max-height: 280px; object-fit: contain; }
+    .read-bar, .save-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .hint { color: var(--muted); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border-radius: 3px; border: 1px solid transparent; padding: 0 14px; height: 34px;
+      font-weight: 650; white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; height: 40px; padding: 0 16px; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-strong); }
+    .btn-danger { background: #fff; color: var(--bad); border-color: #e2c4c4; }
+    .btn-save { background: var(--accent-strong); color: #fff; }
+    .btn-excel { background: #fff; color: var(--ink); border-color: #c5ced6; }
+    .btn-quiet { background: #fff; color: var(--ink); border-color: var(--line); height: 28px; padding: 0 10px; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn.busy::before {
+      content: ""; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .steps { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 2px; }
+    .step {
+      background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+      font-size: 11px; color: var(--muted); font-weight: 650;
+    }
+    .step.on { border-color: var(--accent); color: var(--accent-strong); background: #eef5f9; }
+    .step.done { border-color: #b7d7c3; color: var(--ok); background: #f1f8f4; }
+    .doc-head {
+      display: grid; grid-template-columns: 1.4fr 0.7fr 0.75fr 0.7fr 0.75fr 0.7fr 0.7fr 0.75fr;
+      gap: 10px 12px; padding: 12px; background: var(--soft); border-bottom: 1px solid var(--line);
+    }
+    .field label {
+      display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--muted); font-weight: 650;
+    }
+    .field input, .field select, .cell-input, .search-input {
+      width: 100%; height: 30px; border: 1px solid var(--line); background: #fff;
+      border-radius: 3px; padding: 0 8px;
+    }
+    .cell-input { height: 28px; border-color: transparent; background: transparent; }
+    .field input:focus, .field select:focus, .cell-input:focus, .search-input:focus {
+      outline: none; border-color: var(--accent); background: #fff;
+      box-shadow: 0 0 0 2px rgba(47, 111, 143, 0.15);
+    }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .toolbar {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+    }
+    .chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .chip {
+      background: #e7eef3; color: var(--accent-strong); border-radius: 3px;
+      padding: 2px 7px; font-size: 11px; font-weight: 650;
+    }
+    .table-wrap { overflow: auto; max-height: 440px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th {
+      position: sticky; top: 0; background: var(--head); color: #54606a; font-size: 11px;
+      letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; padding: 8px 10px; z-index: 1;
+    }
+    td { padding: 3px 6px; height: 36px; }
+    tbody tr:hover { background: #f8fafb; }
+    .col-company, .col-date, .seq { padding: 0 10px; white-space: nowrap; }
+    .empty { text-align: center; color: var(--muted); padding: 28px 12px !important; }
+    .warn, .info {
+      margin: 12px 12px 0; padding: 8px 10px; border-radius: 3px;
+    }
+    .warn { background: #fbf6ee; color: var(--warn); border: 1px solid #eadcc4; }
+    .info { background: #eef5f9; color: var(--accent-strong); border: 1px solid #c9dbe6; }
+    .result-pad { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+    details { margin: 12px 12px 0; border: 1px solid var(--line); background: var(--soft); padding: 8px 10px; border-radius: 3px; }
+    details pre {
+      margin: 8px 0 0; white-space: pre-wrap; font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px; color: #3c4650; max-height: 180px; overflow: auto;
+    }
+    .save-bar { padding: 0 12px 12px; }
+    .records { padding: 0; }
+    .record-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--soft); }
+    .record-table { min-width: 920px; }
+    .record-table td { padding: 8px 10px; }
+    .record-table tbody tr { cursor: pointer; }
+    .record-actions { display: flex; gap: 8px; }
+    .toast {
+      position: fixed; right: 18px; bottom: 18px; max-width: 380px; background: #2e353c; color: #fff;
+      padding: 10px 12px; border-radius: 4px; box-shadow: 0 8px 24px rgba(20,28,34,0.2);
+      opacity: 0; transform: translateY(8px); pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease; z-index: 20;
+    }
+    .toast.show { opacity: 1; transform: none; }
+    .toast.bad { background: var(--bad); }
+    .toast.ok { background: #244836; }
+    @media (max-width: 1200px) {
+      .doc-head, .stat-row, .hero-band { grid-template-columns: 1fr 1fr; }
+      .sidebar { width: 72px; flex-basis: 72px; }
+      .brand div, .nav-btn span, .nav-label, .side-foot { display: none; }
+      .brand, .nav-btn { justify-content: center; }
+    }
+    @media (max-width: 760px) {
+      .upload-grid, .doc-head, .stat-row, .read-bar, .save-bar { grid-template-columns: 1fr; display: flex; flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">FO</div>
+        <div>
+          <strong>FiscOCR</strong>
+          <span>Mali belge aktarımı</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Ana menü">
+        <div class="nav-label">Aktarım</div>
+        <button class="nav-btn active" type="button" data-view="transfer" aria-current="page">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 1.5h7l3 3V14.5H3v-13Z" stroke="currentColor" stroke-width="1.2"/><path d="M10 1.5V5h3.2M5 8h6M5 10.5h6" stroke="currentColor" stroke-width="1.2"/></svg>
+          <span>Belge Aktarımı</span>
+        </button>
+        <div class="nav-label">Arşiv</div>
+        <button class="nav-btn" type="button" data-view="records">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><ellipse cx="8" cy="4" rx="5" ry="2" stroke="currentColor" stroke-width="1.2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" stroke="currentColor" stroke-width="1.2"/></svg>
+          <span>Kayıtlı Belgeler</span>
+        </button>
+      </nav>
+      <div class="side-foot">Yerel · PaddleOCR · Ollama · Excel<br />Fiş · İrsaliye · Fatura · PDF</div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <p class="crumb">Belge Yönetimi / <span id="crumb-current">Belge Aktarımı</span></p>
+          <h1 id="page-title">Belge Aktarımı</h1>
+        </div>
+        <div class="top-meta">
+          <span class="badge" id="health-badge">OCR + AI</span>
+          <time id="clock"></time>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="view-transfer">
+          <div class="stat-row" aria-label="Özet">
+            <div class="stat-card"><div class="label">Kuyruk</div><div class="value" id="stat-queue">0</div></div>
+            <div class="stat-card"><div class="label">Kalem</div><div class="value" id="stat-lines">0</div></div>
+            <div class="stat-card"><div class="label">KDV</div><div class="value" id="stat-tax">0,00</div></div>
+            <div class="stat-card"><div class="label">Genel Toplam</div><div class="value" id="stat-total">0,00</div></div>
+          </div>
+
+          <div class="upload-grid">
+            <section class="panel">
+              <div class="panel-h">Belge yükleme <span class="hint">çoklu görsel / PDF</span></div>
+              <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Belge yükle">
+                <input id="file-input" class="file-input" type="file" multiple accept="image/jpeg,image/png,image/bmp,image/webp,image/gif,image/tiff,application/pdf,.jpg,.jpeg,.png,.bmp,.webp,.gif,.tif,.tiff,.pdf" />
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true"><path d="M18 23V8m0 0 5 5m-5-5-5 5" stroke="#2f6f8f" stroke-width="1.6"/><path d="M7 22v6h22v-6" stroke="#66707a" stroke-width="1.6"/></svg>
+                <strong>Fiş, irsaliye veya fatura bırakın</strong>
+                <span>JPG, PNG, WEBP, TIFF, PDF · çoklu seçim · en fazla 12 MB / dosya</span>
+              </div>
+              <div class="queue" id="file-queue"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-h">Önizleme</div>
+              <div class="preview-stage">
+                <p class="hint" id="preview-empty">Görsel seçilmedi</p>
+                <img id="preview-img" alt="Yüklenen belge" hidden />
+              </div>
+            </section>
+          </div>
+
+          <div class="steps" id="read-steps" aria-hidden="true">
+            <span class="step" data-step="queue">1. Dosya</span>
+            <span class="step" data-step="ocr">2. OCR / PDF</span>
+            <span class="step" data-step="ai">3. Yapay zeka</span>
+            <span class="step" data-step="done">4. Tablo</span>
+          </div>
+
+          <div class="read-bar">
+            <p class="hint" id="read-hint">OCR metni yerel model ile firma, tarih, belge no, kalem, KDV ve toplama ayrılır.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-quiet" id="cancel-btn" type="button" hidden>İptal</button>
+              <button class="btn btn-primary" id="read-btn" type="button" disabled>
+                Yapay Zeka ile Oku
+              </button>
+            </div>
+          </div>
+
+          <section class="panel result-pad" id="result-card">
+            <div class="panel-h">
+              <span>Okunan veriler</span>
+              <span class="hint" id="status-line">Henüz okuma yapılmadı.</span>
+            </div>
+            <p class="warn" id="warning" hidden></p>
+            <p class="info" id="validation" hidden></p>
+            <div class="doc-head">
+              <div class="field"><label for="company">Firma</label><input id="company" maxlength="200" autocomplete="off" /></div>
+              <div class="field"><label for="tax-no">Vergi No</label><input id="tax-no" maxlength="16" autocomplete="off" /></div>
+              <div class="field">
+                <label for="doc-type">Belge Türü</label>
+                <select id="doc-type">
+                  <option>Fiş</option>
+                  <option>İrsaliye</option>
+                  <option>Fatura</option>
+                  <option>Belge</option>
+                </select>
+              </div>
+              <div class="field"><label for="doc-no">Belge No</label><input id="doc-no" maxlength="40" autocomplete="off" /></div>
+              <div class="field"><label for="doc-date">Tarih</label><input id="doc-date" type="date" /></div>
+              <div class="field"><label for="subtotal">Ara Toplam</label><input id="subtotal" class="num" inputmode="decimal" value="0,00" /></div>
+              <div class="field"><label for="tax-total">KDV</label><input id="tax-total" class="num" inputmode="decimal" value="0,00" /></div>
+              <div class="field"><label for="total">Genel Toplam</label><input id="total" class="num" inputmode="decimal" value="0,00" /></div>
+            </div>
+            <div class="toolbar">
+              <div class="chips">
+                <span class="toolbar-title">Kalemler</span>
+                <span class="chip" id="line-count">0 kalem</span>
+                <span class="chip" id="confidence" hidden></span>
+              </div>
+              <button class="btn btn-quiet" id="add-line" type="button">Satır ekle</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sıra</th><th>Firma</th><th>Tarih</th><th>Kalem</th>
+                    <th>Miktar</th><th>Birim</th><th>Birim Fiyat</th><th>Tutar</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="line-body">
+                  <tr><td class="empty" colspan="9">Dosya yükleyip Yapay Zeka ile Oku düğmesine basın.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <details id="raw-box" hidden>
+              <summary>Ham okuma</summary>
+              <pre id="raw-text"></pre>
+            </details>
+            <div class="save-bar">
+              <p class="hint">Excel ve kayıt, tablodaki güncel alanları kullanır. Tutarlar otomatik doğrulanır.</p>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-excel" id="excel-btn" type="button" disabled>Excel'e Aktar</button>
+                <button class="btn btn-save" id="save-btn" type="button" disabled>Veritabanına Kaydet</button>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="view-records" class="panel records" hidden>
+          <div class="panel-h">
+            <span>Veritabanındaki belgeler</span>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-quiet" id="backup-btn" type="button">Yedek al</button>
+              <button class="btn btn-quiet" id="refresh-records" type="button">Yenile</button>
+            </div>
+          </div>
+          <div class="record-tools">
+            <input class="search-input" id="record-search" placeholder="Firma, belge no veya VKN ara…" style="max-width:280px" />
+            <select id="record-type" style="width:140px;height:30px;border:1px solid var(--line);border-radius:3px;padding:0 8px;background:#fff;">
+              <option>Tümü</option>
+              <option>Fiş</option>
+              <option>İrsaliye</option>
+              <option>Fatura</option>
+              <option>Belge</option>
+            </select>
+            <button class="btn btn-excel" id="export-selected" type="button">Seçilenleri Excel</button>
+            <button class="btn btn-danger" id="delete-selected" type="button">Seçilenleri sil</button>
+          </div>
+          <div class="table-wrap">
+            <table class="record-table">
+              <thead>
+                <tr>
+                  <th style="width:36px"><input type="checkbox" id="select-all" title="Tümünü seç" /></th>
+                  <th>Kayıt</th><th>Firma</th><th>Tarih</th><th>Tür</th><th>KDV</th><th>Tutar</th><th>Kalemler</th><th>İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="record-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <datalist id="units">
+    <option value="AD"></option><option value="KG"></option><option value="LT"></option>
+    <option value="MT"></option><option value="PK"></option><option value="KL"></option>
+  </datalist>
+
+  <script>
+    const state = {
+      view: "transfer",
+      files: [],
+      activeIndex: -1,
+      previewUrl: null,
+      ready: false,
+      busy: false,
+      id: null,
+      sourceFileName: null,
+      rawText: null,
+      abort: null,
+      records: []
+    };
+
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("file-input");
+    const money = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function tick() { document.getElementById("clock").textContent = new Date().toLocaleString("tr-TR"); }
+    tick(); setInterval(tick, 30000);
+
+    async function loadHealth() {
+      try {
+        const response = await fetch("/api/health");
+        if (!response.ok) return;
+        const data = await response.json();
+        document.getElementById("health-badge").textContent = (data.ollamaModel || "AI") + " · " + (data.ollamaTimeoutSeconds || 600) + "sn";
+      } catch { /* ignore */ }
+    }
+    loadHealth();
+
+    function toast(message, kind) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.className = "toast show " + (kind || "ok");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove("show"), 3600);
+    }
+
+    function formatMoney(value) {
+      const number = Number(value);
+      return money.format(Number.isFinite(number) ? number : 0);
+    }
+
+    function parseMoney(text) {
+      if (text == null) return 0;
+      let value = String(text).trim().replace(/\s/g, "").replace("₺", "").replace(/TL/ig, "");
+      if (!value) return 0;
+      if (value.includes(",") && value.includes(".")) {
+        value = value.lastIndexOf(",") > value.lastIndexOf(".")
+          ? value.replace(/\./g, "").replace(",", ".")
+          : value.replace(/,/g, "");
+      } else if (value.includes(",")) value = value.replace(",", ".");
+      const number = Number(value);
+      return Number.isFinite(number) ? number : 0;
+    }
+
+    function formatDate(iso) {
+      if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || "";
+      const [y, m, d] = iso.split("-");
+      return d + "." + m + "." + y;
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1048576) return Math.round(bytes / 1024) + " KB";
+      return (bytes / 1048576).toFixed(1) + " MB";
+    }
+
+    function setStep(name) {
+      const order = ["queue", "ocr", "ai", "done"];
+      const idx = order.indexOf(name);
+      document.querySelectorAll("#read-steps .step").forEach(el => {
+        const step = el.dataset.step;
+        const i = order.indexOf(step);
+        el.classList.toggle("on", i === idx);
+        el.classList.toggle("done", i < idx);
+      });
+      document.getElementById("read-steps").hidden = false;
+    }
+
+    function updateStats() {
+      document.getElementById("stat-queue").textContent = String(state.files.length);
+      document.getElementById("stat-lines").textContent = String(document.querySelectorAll("#line-body tr[data-line]").length);
+      document.getElementById("stat-tax").textContent = document.getElementById("tax-total").value || "0,00";
+      document.getElementById("stat-total").textContent = document.getElementById("total").value || "0,00";
+    }
+
+    function updateActions() {
+      document.getElementById("read-btn").disabled = state.busy || state.files.length === 0;
+      document.getElementById("read-btn").classList.toggle("busy", state.busy);
+      document.getElementById("excel-btn").disabled = state.busy || !state.ready;
+      document.getElementById("save-btn").disabled = state.busy || !state.ready;
+      document.getElementById("add-line").disabled = state.busy;
+      document.getElementById("cancel-btn").hidden = !state.busy;
+      updateStats();
+    }
+
+    function isAllowed(file) {
+      const name = file.name.toLowerCase();
+      const allowedExt = [".jpg", ".jpeg", ".png", ".bmp", ".webp", ".gif", ".tif", ".tiff", ".pdf"];
+      const allowedType = ["image/jpeg", "image/png", "image/bmp", "image/webp", "image/gif", "image/tiff", "application/pdf"];
+      return allowedExt.some(ext => name.endsWith(ext)) || allowedType.includes(file.type);
+    }
+
+    function renderQueue() {
+      const box = document.getElementById("file-queue");
+      box.replaceChildren();
+      state.files.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "queue-item" + (index === state.activeIndex ? " active" : "") + (item.status === "done" ? " done" : "");
+        const left = document.createElement("span");
+        left.textContent = item.file.name + " · " + formatSize(item.file.size) + (item.status === "done" ? " ✓" : "");
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+        const show = document.createElement("button");
+        show.type = "button"; show.className = "linkish"; show.textContent = "Göster";
+        show.addEventListener("click", () => showPreview(index));
+        const remove = document.createElement("button");
+        remove.type = "button"; remove.className = "linkish"; remove.textContent = "Kaldır";
+        remove.addEventListener("click", () => {
+          state.files.splice(index, 1);
+          if (state.activeIndex >= state.files.length) state.activeIndex = state.files.length - 1;
+          renderQueue();
+          if (state.activeIndex >= 0) showPreview(state.activeIndex);
+          else clearPreview();
+          updateActions();
+        });
+        actions.append(show, remove);
+        row.append(left, actions);
+        box.append(row);
+      });
+      updateActions();
+    }
+
+    function clearPreview() {
+      if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
+      state.previewUrl = null;
+      const image = document.getElementById("preview-img");
+      image.hidden = true;
+      image.removeAttribute("src");
+      document.getElementById("preview-empty").hidden = false;
+    }
+
+    function showPreview(index) {
+      const item = state.files[index];
+      if (!item) return;
+      state.activeIndex = index;
+      if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
+      const isPdf = item.file.name.toLowerCase().endsWith(".pdf") || item.file.type === "application/pdf";
+      const image = document.getElementById("preview-img");
+      if (isPdf) {
+        clearPreview();
+        document.getElementById("preview-empty").hidden = false;
+        document.getElementById("preview-empty").textContent = "PDF: " + item.file.name;
+        state.activeIndex = index;
+      } else {
+        state.previewUrl = URL.createObjectURL(item.file);
+        image.src = state.previewUrl;
+        image.hidden = false;
+        document.getElementById("preview-empty").hidden = true;
+      }
+      renderQueue();
+    }
+
+    function addFiles(fileList) {
+      const incoming = [...fileList];
+      let added = 0;
+      for (const file of incoming) {
+        if (!isAllowed(file)) { toast(file.name + " desteklenmiyor.", "bad"); continue; }
+        if (file.size > 12 * 1024 * 1024) { toast(file.name + " 12 MB sınırını aşıyor.", "bad"); continue; }
+        state.files.push({ file, status: "pending" });
+        added += 1;
+      }
+      if (added) {
+        if (state.activeIndex < 0) showPreview(0);
+        else renderQueue();
+        document.getElementById("read-hint").textContent = added + " dosya kuyruğa eklendi. Sırayla okunabilir.";
+        setStep("queue");
+        toast(added + " dosya eklendi.", "ok");
+      }
+      updateActions();
+    }
+
+    function hasFiles(event) { return [...(event.dataTransfer?.types || [])].includes("Files"); }
+    let dragDepth = 0;
+    window.addEventListener("dragenter", event => { if (!hasFiles(event)) return; dragDepth += 1; dropzone.classList.add("dragover"); });
+    window.addEventListener("dragover", event => { if (!hasFiles(event)) return; event.preventDefault(); });
+    window.addEventListener("dragleave", () => { dragDepth = Math.max(0, dragDepth - 1); if (dragDepth === 0) dropzone.classList.remove("dragover"); });
+    window.addEventListener("drop", event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); dragDepth = 0; dropzone.classList.remove("dragover");
+      addFiles(event.dataTransfer.files);
+    });
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener("change", () => { if (fileInput.files?.length) addFiles(fileInput.files); fileInput.value = ""; });
+
+    function companyText() { return document.getElementById("company").value.trim() || "—"; }
+    function dateText() { return formatDate(document.getElementById("doc-date").value) || "—"; }
+    function paintRepeatedColumns() {
+      document.querySelectorAll(".col-company").forEach(cell => { cell.textContent = companyText(); });
+      document.querySelectorAll(".col-date").forEach(cell => { cell.textContent = dateText(); });
+    }
+
+    function readRow(row, index) {
+      return {
+        lineNo: index + 1,
+        description: row.querySelector('[data-field="description"]').value.trim(),
+        quantity: parseMoney(row.querySelector('[data-field="quantity"]').value) || 1,
+        unit: row.querySelector('[data-field="unit"]').value.trim() || "AD",
+        unitPrice: parseMoney(row.querySelector('[data-field="unitPrice"]').value),
+        amount: parseMoney(row.querySelector('[data-field="amount"]').value)
+      };
+    }
+
+    function collectLines() {
+      return [...document.querySelectorAll("#line-body tr[data-line]")]
+        .map(readRow)
+        .filter(line => line.description || line.amount || line.unitPrice);
+    }
+
+    function lineSum() { return collectLines().reduce((sum, line) => sum + line.amount, 0); }
+
+    function updateLineCount() {
+      const count = document.querySelectorAll("#line-body tr[data-line]").length;
+      document.getElementById("line-count").textContent = count + " kalem";
+      updateStats();
+    }
+
+    function renderLines(lines) {
+      const body = document.getElementById("line-body");
+      body.replaceChildren();
+      if (!lines.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 9; cell.className = "empty";
+        cell.textContent = "Okunan kalem yok. Satır ekleyerek devam edebilirsiniz.";
+        row.append(cell); body.append(row); updateLineCount(); return;
+      }
+      lines.forEach((line, index) => {
+        const row = document.createElement("tr");
+        row.dataset.line = "1";
+        const seq = document.createElement("td"); seq.className = "seq"; seq.textContent = String(index + 1);
+        const company = document.createElement("td"); company.className = "col-company";
+        const date = document.createElement("td"); date.className = "col-date";
+        row.append(seq, company, date,
+          inputCell("description", line.description || "", false),
+          inputCell("quantity", formatQty(line.quantity), true),
+          inputCell("unit", line.unit || "AD", false),
+          inputCell("unitPrice", formatMoney(line.unitPrice), true),
+          inputCell("amount", formatMoney(line.amount), true));
+        const action = document.createElement("td");
+        const remove = document.createElement("button");
+        remove.type = "button"; remove.className = "linkish"; remove.textContent = "Sil";
+        remove.addEventListener("click", () => {
+          const remaining = [...document.querySelectorAll("#line-body tr[data-line]")].map(readRow)
+            .filter((_, rowIndex) => rowIndex !== index);
+          renderLines(remaining.length ? remaining : [{ description: "", quantity: 1, unit: "AD", unitPrice: 0, amount: 0 }]);
+          syncTotalsFromLines();
+        });
+        action.append(remove); row.append(action);
+        row.querySelectorAll(".cell-input").forEach(input => {
+          input.addEventListener("input", onLineInput);
+          input.addEventListener("blur", event => {
+            const field = event.target.dataset.field;
+            if (field === "quantity") event.target.value = formatQty(parseMoney(event.target.value) || 1);
+            if (field === "unitPrice" || field === "amount") event.target.value = formatMoney(parseMoney(event.target.value));
+          });
+        });
+        body.append(row);
+      });
+      paintRepeatedColumns();
+      updateLineCount();
+    }
+
+    function inputCell(field, value, numeric) {
+      const cell = document.createElement("td");
+      const input = document.createElement("input");
+      input.className = "cell-input" + (numeric ? " num" : "");
+      input.dataset.field = field; input.value = value; input.autocomplete = "off";
+      if (field === "description") input.maxLength = 300;
+      if (field === "unit") { input.maxLength = 12; input.setAttribute("list", "units"); }
+      if (numeric) input.inputMode = "decimal";
+      cell.append(input); return cell;
+    }
+
+    function formatQty(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "1";
+      return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 3 }).format(number);
+    }
+
+    function syncTotalsFromLines() {
+      const sum = lineSum();
+      document.getElementById("subtotal").value = formatMoney(sum);
+      const tax = parseMoney(document.getElementById("tax-total").value);
+      document.getElementById("total").value = formatMoney(sum + tax);
+      updateLocalValidation();
+      updateStats();
+    }
+
+    function onLineInput(event) {
+      const row = event.target.closest("tr");
+      const field = event.target.dataset.field;
+      if (field === "quantity" || field === "unitPrice") {
+        const quantity = parseMoney(row.querySelector('[data-field="quantity"]').value) || 0;
+        const price = parseMoney(row.querySelector('[data-field="unitPrice"]').value);
+        row.querySelector('[data-field="amount"]').value = formatMoney(quantity * price);
+      }
+      syncTotalsFromLines();
+    }
+
+    function updateLocalValidation() {
+      const messages = [];
+      collectLines().forEach((line, i) => {
+        if (line.quantity > 0 && line.unitPrice > 0) {
+          const expected = Math.round(line.quantity * line.unitPrice * 100) / 100;
+          if (Math.abs(expected - line.amount) > 0.05)
+            messages.push("Satır " + (i + 1) + ": adet × fiyat uyuşmuyor.");
+        }
+      });
+      const sub = parseMoney(document.getElementById("subtotal").value);
+      const tax = parseMoney(document.getElementById("tax-total").value);
+      const total = parseMoney(document.getElementById("total").value);
+      if (sub > 0 && tax >= 0 && total > 0 && Math.abs(total - (sub + tax)) > 0.5)
+        messages.push("Genel toplam, ara toplam + KDV ile uyuşmuyor.");
+      const box = document.getElementById("validation");
+      box.hidden = messages.length === 0;
+      box.textContent = messages.length ? ("Kontrol: " + messages.join(" ")) : "";
+    }
+
+    function normalizeIsoDate(value) {
+      if (!value) return "";
+      const text = String(value).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+      const match = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(text);
+      if (!match) return "";
+      return match[3] + "-" + match[2].padStart(2, "0") + "-" + match[1].padStart(2, "0");
+    }
+
+    function mapIncomingLine(line) {
+      const quantity = Number(line.quantity ?? line.adet ?? 1);
+      const unitPrice = Number(line.unitPrice ?? line.birim_fiyat ?? line.birimFiyat ?? 0);
+      const amount = Number(line.amount ?? line.toplam ?? 0);
+      return {
+        description: line.description || line.urun_adi || line.urunAdi || "",
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        unit: line.unit || line.birim || "AD",
+        unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
+        amount: Number.isFinite(amount) ? amount : 0
+      };
+    }
+
+    function applyDocument(doc, fromDatabase) {
+      state.ready = true;
+      state.id = fromDatabase ? doc.id : state.id;
+      state.sourceFileName = doc.sourceFileName || state.sourceFileName;
+      state.rawText = doc.rawText || null;
+      const company = doc.firma_adi || doc.firmaAdi || doc.company || "";
+      const date = normalizeIsoDate(doc.tarih) || normalizeIsoDate(doc.date) || doc.date || "";
+      const documentNo = doc.fis_no || doc.fisNo || doc.documentNo || "";
+      const total = doc.genel_toplam ?? doc.genelToplam ?? doc.total ?? 0;
+      const tax = doc.kdv_toplam ?? doc.kdvToplam ?? doc.taxTotal ?? 0;
+      const sub = doc.ara_toplam ?? doc.araToplam ?? doc.subTotal ?? 0;
+      document.getElementById("company").value = company;
+      document.getElementById("tax-no").value = doc.vergi_no || doc.vergiNo || doc.taxNumber || "";
+      const types = ["Fiş", "İrsaliye", "Fatura", "Belge"];
+      const type = doc.belge_turu || doc.belgeTuru || doc.documentType;
+      document.getElementById("doc-type").value = types.includes(type) ? type : "Belge";
+      document.getElementById("doc-no").value = documentNo;
+      document.getElementById("doc-date").value = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+      document.getElementById("subtotal").value = formatMoney(sub);
+      document.getElementById("tax-total").value = formatMoney(tax);
+      document.getElementById("total").value = formatMoney(total);
+      const sourceLines = Array.isArray(doc.kalemler) && doc.kalemler.length
+        ? doc.kalemler : (Array.isArray(doc.lines) ? doc.lines : []);
+      const lines = sourceLines.length
+        ? sourceLines.map(mapIncomingLine)
+        : [{ description: "", quantity: 1, unit: "AD", unitPrice: 0, amount: 0 }];
+      renderLines(lines);
+      const raw = document.getElementById("raw-box");
+      if (doc.rawText) {
+        document.getElementById("raw-text").textContent = doc.rawText;
+        raw.hidden = false;
+      } else raw.hidden = true;
+      const warning = document.getElementById("warning");
+      warning.hidden = !doc.warning;
+      warning.textContent = doc.warning || "";
+      const validation = document.getElementById("validation");
+      const messages = Array.isArray(doc.validationMessages) ? doc.validationMessages : [];
+      validation.hidden = messages.length === 0;
+      validation.textContent = messages.length ? ("Kontrol: " + messages.join(" ")) : "";
+      const confidence = document.getElementById("confidence");
+      if (doc.confidence) {
+        confidence.hidden = false;
+        confidence.textContent = "Güven %" + Math.round(doc.confidence * 100);
+      } else confidence.hidden = true;
+      document.getElementById("status-line").textContent = fromDatabase
+        ? "Kayıt " + doc.id + " yüklendi."
+        : (doc.warning || ("AI tabloyu doldurdu · " + (state.sourceFileName || "belge")));
+      setStep("done");
+      updateActions();
+      if (!fromDatabase) document.getElementById("result-card").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function collectDocument() {
+      return {
+        id: state.id,
+        documentType: document.getElementById("doc-type").value,
+        documentNo: document.getElementById("doc-no").value.trim() || null,
+        company: document.getElementById("company").value.trim(),
+        taxNumber: document.getElementById("tax-no").value.trim() || null,
+        date: document.getElementById("doc-date").value || null,
+        subTotal: parseMoney(document.getElementById("subtotal").value),
+        taxTotal: parseMoney(document.getElementById("tax-total").value),
+        total: parseMoney(document.getElementById("total").value),
+        currency: "TRY",
+        sourceFileName: state.sourceFileName,
+        rawText: state.rawText,
+        lines: collectLines()
+      };
+    }
+
+    async function readError(response) {
+      try {
+        const data = await response.json();
+        return data.message || data.detail || data.title || "İstek başarısız.";
+      } catch { return "İstek başarısız (" + response.status + ")."; }
+    }
+
+    async function readOne(file) {
+      const body = new FormData();
+      body.append("file", file, file.name);
+      const response = await fetch("/api/fis/oku", { method: "POST", body, signal: state.abort?.signal });
+      if (!response.ok) throw new Error(await readError(response));
+      return response.json();
+    }
+
+    async function readDocument() {
+      if (!state.files.length || state.busy) return;
+      state.busy = true;
+      state.abort = new AbortController();
+      updateActions();
+      const pending = state.files.filter(item => item.status !== "done");
+      const targets = pending.length ? pending : state.files;
+      let lastDoc = null;
+      try {
+        for (let i = 0; i < targets.length; i++) {
+          const item = targets[i];
+          const index = state.files.indexOf(item);
+          state.activeIndex = index;
+          state.id = null;
+          state.sourceFileName = item.file.name;
+          showPreview(index);
+          setStep("ocr");
+          document.getElementById("read-hint").textContent =
+            "Okunuyor (" + (i + 1) + "/" + targets.length + "): " + item.file.name + " — OCR ve AI çalışıyor…";
+          setStep("ai");
+          lastDoc = await readOne(item.file);
+          item.status = "done";
+          applyDocument(lastDoc, false);
+          if (targets.length > 1 && i < targets.length - 1) {
+            const save = await fetch("/api/documents", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(collectDocument()),
+              signal: state.abort.signal
+            });
+            if (save.ok) {
+              const saved = await save.json();
+              state.id = saved.id;
+              toast(item.file.name + " kaydedildi (#" + saved.id + ").", "ok");
+            }
+          }
+        }
+        toast(targets.length > 1 ? targets.length + " belge işlendi." : "Okuma tamamlandı.", "ok");
+        document.getElementById("read-hint").textContent = "Tablo doldu. Excel'e aktarabilir veya kaydedebilirsiniz.";
+      } catch (error) {
+        if (error.name === "AbortError") {
+          toast("Okuma iptal edildi.", "bad");
+          document.getElementById("read-hint").textContent = "Okuma iptal edildi.";
+        } else {
+          toast(error.message || "Okuma başarısız.", "bad");
+          document.getElementById("read-hint").textContent = error.message || "Okuma başarısız.";
+        }
+      } finally {
+        state.busy = false;
+        state.abort = null;
+        renderQueue();
+        updateActions();
+      }
+    }
+
+    function downloadBlob(response, fallback) {
+      return response.blob().then(blob => {
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const match = /filename="?([^";]+)"?/i.exec(disposition);
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = match ? match[1] : fallback;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+    }
+
+    async function exportExcel() {
+      if (!state.ready || state.busy) return;
+      state.busy = true; updateActions();
+      try {
+        const response = await fetch("/api/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(collectDocument())
+        });
+        if (!response.ok) throw new Error(await readError(response));
+        await downloadBlob(response, "fiscocr.xlsx");
+        toast("Excel dosyası indirildi.", "ok");
+      } catch (error) {
+        toast(error.message || "Excel aktarımı başarısız.", "bad");
+      } finally { state.busy = false; updateActions(); }
+    }
+
+    async function saveDocument() {
+      if (!state.ready || state.busy) return;
+      state.busy = true; updateActions();
+      try {
+        const response = await fetch("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(collectDocument())
+        });
+        if (!response.ok) throw new Error(await readError(response));
+        const saved = await response.json();
+        state.id = saved.id;
+        document.getElementById("status-line").textContent = "Veritabanına kaydedildi. Kayıt no " + saved.id + ".";
+        toast("Belge kaydedildi. #" + saved.id, "ok");
+      } catch (error) {
+        toast(error.message || "Kayıt başarısız.", "bad");
+      } finally { state.busy = false; updateActions(); }
+    }
+
+    function selectedRecordIds() {
+      return [...document.querySelectorAll(".rec-check:checked")].map(el => Number(el.value));
+    }
+
+    function renderRecords(rows) {
+      state.records = rows;
+      const body = document.getElementById("record-body");
+      body.replaceChildren();
+      if (!rows.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 9; cell.className = "empty"; cell.textContent = "Kayıt bulunamadı.";
+        row.append(cell); body.append(row); return;
+      }
+      rows.forEach(doc => {
+        const row = document.createElement("tr");
+        const lines = Array.isArray(doc.lines) ? doc.lines : [];
+        const check = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.className = "rec-check"; cb.value = String(doc.id);
+        cb.addEventListener("click", event => event.stopPropagation());
+        check.append(cb);
+        const values = [
+          String(doc.id ?? ""),
+          doc.company || "—",
+          formatDate(doc.date) || "—",
+          doc.documentType || "Belge",
+          formatMoney(doc.taxTotal || 0),
+          formatMoney(doc.total) + " TRY",
+          lines.length + " kalem"
+        ];
+        row.append(check);
+        values.forEach((value, index) => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          if (index === 4 || index === 5) cell.className = "num";
+          row.append(cell);
+        });
+        const actions = document.createElement("td");
+        actions.className = "record-actions";
+        const open = document.createElement("button");
+        open.type = "button"; open.className = "linkish"; open.textContent = "Aç";
+        open.addEventListener("click", event => {
+          event.stopPropagation();
+          showView("transfer");
+          applyDocument(doc, true);
+        });
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "linkish"; del.textContent = "Sil";
+        del.addEventListener("click", async event => {
+          event.stopPropagation();
+          if (!confirm("Kayıt #" + doc.id + " silinsin mi?")) return;
+          const response = await fetch("/api/documents/" + doc.id, { method: "DELETE" });
+          if (!response.ok) { toast(await readError(response), "bad"); return; }
+          toast("Kayıt silindi.", "ok");
+          loadRecords();
+        });
+        actions.append(open, del);
+        row.append(actions);
+        row.addEventListener("click", () => { showView("transfer"); applyDocument(doc, true); });
+        body.append(row);
+      });
+    }
+
+    async function loadRecords() {
+      const body = document.getElementById("record-body");
+      body.innerHTML = '<tr><td class="empty" colspan="9">Kayıtlar yükleniyor…</td></tr>';
+      try {
+        const q = document.getElementById("record-search").value.trim();
+        const type = document.getElementById("record-type").value;
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        if (type && type !== "Tümü") params.set("type", type);
+        const response = await fetch("/api/documents?" + params.toString());
+        if (!response.ok) throw new Error(await readError(response));
+        renderRecords(await response.json());
+      } catch (error) {
+        body.innerHTML = '<tr><td class="empty" colspan="9">' + (error.message || "Kayıtlar alınamadı.") + '</td></tr>';
+      }
+    }
+
+    function showView(view) {
+      state.view = view;
+      document.getElementById("view-transfer").hidden = view !== "transfer";
+      document.getElementById("view-records").hidden = view !== "records";
+      document.querySelectorAll(".nav-btn").forEach(button => {
+        const active = button.dataset.view === view;
+        button.classList.toggle("active", active);
+        if (active) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      const title = view === "records" ? "Kayıtlı Belgeler" : "Belge Aktarımı";
+      document.getElementById("crumb-current").textContent = title;
+      document.getElementById("page-title").textContent = title;
+      if (view === "records") loadRecords();
+    }
+
+    document.querySelectorAll(".nav-btn").forEach(button => {
+      button.addEventListener("click", () => showView(button.dataset.view));
+    });
+    document.getElementById("company").addEventListener("input", paintRepeatedColumns);
+    document.getElementById("doc-date").addEventListener("input", paintRepeatedColumns);
+    ["subtotal", "tax-total", "total"].forEach(id => {
+      document.getElementById(id).addEventListener("blur", event => {
+        event.target.value = formatMoney(parseMoney(event.target.value));
+        if (id === "tax-total" || id === "subtotal") {
+          const sub = parseMoney(document.getElementById("subtotal").value);
+          const tax = parseMoney(document.getElementById("tax-total").value);
+          document.getElementById("total").value = formatMoney(sub + tax);
+        }
+        updateLocalValidation();
+        updateStats();
+      });
+    });
+    document.getElementById("add-line").addEventListener("click", () => {
+      const lines = [...document.querySelectorAll("#line-body tr[data-line]")].map(readRow);
+      lines.push({ description: "", quantity: 1, unit: "AD", unitPrice: 0, amount: 0 });
+      state.ready = true;
+      renderLines(lines);
+      updateActions();
+    });
+    document.getElementById("read-btn").addEventListener("click", readDocument);
+    document.getElementById("cancel-btn").addEventListener("click", () => state.abort?.abort());
+    document.getElementById("excel-btn").addEventListener("click", exportExcel);
+    document.getElementById("save-btn").addEventListener("click", saveDocument);
+    document.getElementById("refresh-records").addEventListener("click", loadRecords);
+    document.getElementById("record-search").addEventListener("input", () => {
+      clearTimeout(loadRecords._t);
+      loadRecords._t = setTimeout(loadRecords, 250);
+    });
+    document.getElementById("record-type").addEventListener("change", loadRecords);
+    document.getElementById("select-all").addEventListener("change", event => {
+      document.querySelectorAll(".rec-check").forEach(cb => { cb.checked = event.target.checked; });
+    });
+    document.getElementById("delete-selected").addEventListener("click", async () => {
+      const ids = selectedRecordIds();
+      if (!ids.length) { toast("Silmek için kayıt seçin.", "bad"); return; }
+      if (!confirm(ids.length + " kayıt silinsin mi?")) return;
+      for (const id of ids) await fetch("/api/documents/" + id, { method: "DELETE" });
+      toast("Seçilen kayıtlar silindi.", "ok");
+      loadRecords();
+    });
+    document.getElementById("export-selected").addEventListener("click", async () => {
+      const ids = selectedRecordIds();
+      const docs = state.records.filter(doc => ids.includes(doc.id));
+      if (!docs.length) { toast("Excel için kayıt seçin.", "bad"); return; }
+      const response = await fetch("/api/export/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(docs)
+      });
+      if (!response.ok) { toast(await readError(response), "bad"); return; }
+      await downloadBlob(response, "fiscocr-toplu.xlsx");
+      toast("Toplu Excel indirildi.", "ok");
+    });
+    document.getElementById("backup-btn").addEventListener("click", async () => {
+      const response = await fetch("/api/backup");
+      if (!response.ok) { toast(await readError(response), "bad"); return; }
+      await downloadBlob(response, "fiscocr-yedek.db");
+      toast("Veritabanı yedeği indirildi.", "ok");
+    });
+  </script>
+</body>
+</html>

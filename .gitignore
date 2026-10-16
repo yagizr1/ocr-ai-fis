@@ -1,0 +1,30 @@
+## Build
+bin/
+obj/
+out/
+*.user
+*.suo
+.vs/
+*.DotSettings.user
+
+## Runtime / local data
+App_Data/*.db
+App_Data/*.db-*
+App_Data/*.db-shm
+App_Data/*.db-wal
+**/fiscocr.db*
+
+## Logs & temp
+*.log
+*.tmp
+*.cache
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Secrets / local overrides (keep appsettings.json tracked)
+appsettings.*.local.json
+.env
+.env.*
