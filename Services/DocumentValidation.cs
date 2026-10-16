@@ -59,20 +59,34 @@ public static class DocumentValidation
         {
             if (line.Quantity <= 0)
                 line.Quantity = 1;
+
+            // Gramaj/yanlış adet: adet×fiyat tutarla uyuşmuyorsa satır tutarını esas al
+            if (line.Amount > 0 && line.Quantity > 0 && line.UnitPrice > 0)
+            {
+                var expected = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero);
+                if (Math.Abs(expected - line.Amount) > 0.05m)
+                {
+                    // Tipik hata: adet=35/40/50 (gramaj), fiyat küsuratlı
+                    if (line.Quantity >= 10 || line.UnitPrice < 0.1m
+                        || Math.Abs(line.Amount - line.UnitPrice) < 0.01m)
+                    {
+                        line.Quantity = 1;
+                        line.UnitPrice = line.Amount;
+                    }
+                    else
+                    {
+                        // Açık çarpan gibi duruyorsa fiyatı tutardan türet
+                        line.UnitPrice = decimal.Round(line.Amount / line.Quantity, 2, MidpointRounding.AwayFromZero);
+                    }
+                }
+            }
+
             if (line.Amount == 0 && line.UnitPrice > 0)
                 line.Amount = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero);
             else if (line.UnitPrice == 0 && line.Amount > 0)
                 line.UnitPrice = decimal.Round(line.Amount / line.Quantity, 2, MidpointRounding.AwayFromZero);
-            else if (line.Quantity > 0 && line.UnitPrice > 0)
-            {
-                var expected = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero);
-                if (line.Amount <= 0 || Math.Abs(expected - line.Amount) <= 0.15m)
-                    line.Amount = expected;
-                else if (line.Quantity == 1 && line.Amount > 0)
-                    line.UnitPrice = line.Amount; // market fişi satır tutarı = fiyat
-                else if (line.Amount > 0)
-                    line.UnitPrice = decimal.Round(line.Amount / line.Quantity, 2, MidpointRounding.AwayFromZero);
-            }
+            else if (line.Quantity == 1 && line.Amount > 0)
+                line.UnitPrice = line.Amount;
         }
 
         var lineSum = decimal.Round(lines.Sum(line => line.Amount), 2, MidpointRounding.AwayFromZero);

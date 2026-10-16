@@ -220,6 +220,8 @@ public sealed class OllamaService : IOllamaService
         - TOPLAM, TOPKDV, KREDİ KARTI, NAKİT, Z NO, EKÜ, KASİYER, tarih/saat satırlarını kalem yapma.
         - "%08" / "%18" KDV oranı satırları kalem değildir.
         - "3 X 1,00" gibi miktar satırı varsa sonraki ürünle TEK kalem yap: adet=3, birim_fiyat=1.00, toplam=3.00.
+        - Ürün adındaki "35 G", "40 GR", "50 G", "200ML" gramaj/hacimdir; adet DEĞİLDİR. Açık çarpan yoksa adet=1, birim_fiyat=satır tutarı.
+        - adet × birim_fiyat her zaman satır toplamına eşit olsun.
         - Aynı ürün iki kez yazılmışsa iki ayrı kalem olabilir; olmayan ürün ekleme.
         - Sayıda ondalık ayırıcı nokta. Binlik ayracı kullanma.
 

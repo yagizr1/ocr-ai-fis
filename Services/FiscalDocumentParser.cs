@@ -34,11 +34,17 @@ public static class FiscalDocumentParser
         @"\b(\d{4})[./-](\d{2})[./-](\d{2})\b",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private static readonly HashSet<string> Units = new(StringComparer.Ordinal)
+    /// <summary>Satış birimi (adet/koli). Gramaj (G/GR) buraya girmez — ürün adıdır.</summary>
+    private static readonly HashSet<string> SalesUnits = new(StringComparer.Ordinal)
     {
-        "AD", "ADET", "ADT", "KG", "GR", "G", "LT", "L", "MT", "M",
-        "PK", "PKT", "PAKET", "KL", "KOLI", "KOLI.", "KT", "TN", "KUTU",
-        "CUVAL", "M2", "M3"
+        "AD", "ADET", "ADT", "PK", "PKT", "PAKET", "KL", "KOLI", "KOLI.", "KT",
+        "TN", "KUTU", "CUVAL", "KG", "LT", "L", "MT", "M", "M2", "M3"
+    };
+
+    /// <summary>Ürün adındaki gramaj/hacim; asla miktar (adet) sayılmaz.</summary>
+    private static readonly HashSet<string> WeightTokens = new(StringComparer.Ordinal)
+    {
+        "G", "GR", "GR.", "GRAM", "KG", "ML", "CL", "LT", "L", "CC"
     };
 
     public static FiscalDocumentDto Parse(OCRResult? result)
@@ -492,10 +498,60 @@ public static class FiscalDocumentParser
             return null;
 
         var used = new HashSet<int>();
+
+        // 1) Ürün adındaki gramaj/hacim: "50 G", "40 GR", "200ML" → adet adayı olmasın
+        MarkWeightTokens(parts, used);
+
+        // 2) Satır içi çarpan: "3 X 1,00" veya "2 X 1,75"
+        decimal quantity = 1;
+        decimal unitPrice = 0;
+        var hasExplicitQty = false;
+        for (var i = 0; i < parts.Count - 2; i++)
+        {
+            if (used.Contains(i))
+                continue;
+            if (!TryParseQuantity(parts[i], out var qty))
+                continue;
+            var mid = parts[i + 1].Trim();
+            if (mid is not ("X" or "x" or "×" or "*"))
+                continue;
+            if (!TryParseMoney(parts[i + 2], out var price))
+                continue;
+            quantity = qty;
+            unitPrice = price;
+            hasExplicitQty = true;
+            used.Add(i);
+            used.Add(i + 1);
+            used.Add(i + 2);
+            break;
+        }
+
+        // Tek token "3x1,00"
+        if (!hasExplicitQty)
+        {
+            for (var i = 0; i < parts.Count; i++)
+            {
+                if (used.Contains(i))
+                    continue;
+                var m = Regex.Match(parts[i], @"^(\d{1,4})[xX×](\d+[.,]\d{2})$");
+                if (!m.Success)
+                    continue;
+                if (!TryParseQuantity(m.Groups[1].Value, out var qty) || !TryParseMoney(m.Groups[2].Value, out var price))
+                    continue;
+                quantity = qty;
+                unitPrice = price;
+                hasExplicitQty = true;
+                used.Add(i);
+                break;
+            }
+        }
+
         var moneys = new List<decimal>();
         var moneyIndexes = new List<int>();
         for (var i = 0; i < parts.Count; i++)
         {
+            if (used.Contains(i))
+                continue;
             if (!TryParseMoney(parts[i], out var money))
                 continue;
             moneys.Add(money);
@@ -503,19 +559,34 @@ public static class FiscalDocumentParser
             used.Add(i);
         }
 
-        if (moneys.Count == 0)
+        if (moneys.Count == 0 && !hasExplicitQty)
             return null;
 
-        var amount = moneys[^1];
-        var unitPrice = moneys.Count >= 2 ? moneys[^2] : 0m;
+        var amount = moneys.Count > 0
+            ? moneys[^1]
+            : decimal.Round(quantity * unitPrice, 2, MidpointRounding.AwayFromZero);
+
+        // Açık çarpan yoksa adet her zaman 1; gramaj sayısı asla adet olmaz
+        if (!hasExplicitQty)
+            quantity = 1;
+
+        if (hasExplicitQty && unitPrice > 0)
+            amount = decimal.Round(quantity * unitPrice, 2, MidpointRounding.AwayFromZero);
+        else if (unitPrice <= 0 && amount > 0)
+            unitPrice = amount; // market fişi: tek tutar = birim fiyat (adet=1)
+        else if (unitPrice <= 0 && moneys.Count >= 2)
+            unitPrice = moneys[^2];
+
         var unit = "AD";
         for (var i = 0; i < parts.Count; i++)
         {
             if (used.Contains(i))
                 continue;
-            var normalized = parts[i].Trim('.', ',', ':').ToUpper(Turkish);
-            normalized = Fold(normalized).ToUpperInvariant();
-            if (!Units.Contains(normalized) && normalized is not ("KOLI" or "CUVAL"))
+            var normalized = Fold(parts[i].Trim('.', ',', ':')).ToUpperInvariant();
+            if (!SalesUnits.Contains(normalized) && normalized is not ("KOLI" or "CUVAL"))
+                continue;
+            // Gramaj birimini satış birimi yapma
+            if (WeightTokens.Contains(normalized) && normalized is "G" or "GR" or "GR." or "GRAM" or "ML" or "CL" or "CC")
                 continue;
             unit = normalized switch
             {
@@ -523,7 +594,6 @@ public static class FiscalDocumentParser
                 "PAKET" or "PKT" => "PK",
                 "KOLI" => "KL",
                 "CUVAL" => "ÇUVAL",
-                "G" or "GR" => "GR",
                 "L" => "LT",
                 _ => normalized
             };
@@ -531,29 +601,30 @@ public static class FiscalDocumentParser
             break;
         }
 
-        decimal quantity = 0;
-        var firstMoney = moneyIndexes[0];
-        for (var i = firstMoney - 1; i >= 0; i--)
+        // Açıklamada para ve çarpan token'ları hariç; gramaj isimde kalsın
+        var descParts = new List<string>();
+        for (var i = 0; i < parts.Count; i++)
         {
-            if (used.Contains(i) || !TryParseQuantity(parts[i], out var parsed))
+            if (moneyIndexes.Contains(i))
                 continue;
-            quantity = parsed;
-            used.Add(i);
-            break;
+            // Çarpan token'ları (x ve sayılar) used içinde olabilir — açıklamaya alma
+            if (used.Contains(i) && !IsWeightRelated(parts, i))
+                continue;
+            descParts.Add(parts[i]);
         }
 
-        if (quantity <= 0)
-            quantity = 1;
-        if (unitPrice == 0 && amount > 0)
-            unitPrice = decimal.Round(amount / quantity, 2, MidpointRounding.AwayFromZero);
-
-        var description = Clean(string.Join(" ", parts.Where((_, index) => !used.Contains(index))));
+        var description = Clean(string.Join(" ", descParts));
         if (description.Length < 2 || !Regex.IsMatch(description, @"[A-Za-zÇĞİÖŞÜçğıöşü]"))
         {
             if (amount <= 0)
                 return null;
             description = "Kalem";
         }
+
+        if (quantity <= 0)
+            quantity = 1;
+        if (unitPrice <= 0 && amount > 0)
+            unitPrice = decimal.Round(amount / quantity, 2, MidpointRounding.AwayFromZero);
 
         return new FiscalLineDto
         {
@@ -563,6 +634,46 @@ public static class FiscalDocumentParser
             UnitPrice = unitPrice,
             Amount = decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
         };
+    }
+
+    private static void MarkWeightTokens(IReadOnlyList<string> parts, HashSet<int> used)
+    {
+        for (var i = 0; i < parts.Count; i++)
+        {
+            // "200ML" tek token
+            if (Regex.IsMatch(parts[i], @"^\d{1,5}(G|GR|KG|ML|CL|LT)\.?$", RegexOptions.IgnoreCase))
+            {
+                used.Add(i);
+                continue;
+            }
+
+            if (i + 1 >= parts.Count)
+                continue;
+            if (!TryParseQuantity(parts[i], out _))
+                continue;
+            var next = Fold(parts[i + 1].Trim('.', ',', ':')).ToUpperInvariant();
+            if (!WeightTokens.Contains(next))
+                continue;
+            used.Add(i);
+            used.Add(i + 1);
+        }
+    }
+
+    private static bool IsWeightRelated(IReadOnlyList<string> parts, int index)
+    {
+        var token = Fold(parts[index].Trim('.', ',', ':')).ToUpperInvariant();
+        if (WeightTokens.Contains(token))
+            return true;
+        if (Regex.IsMatch(parts[index], @"^\d{1,5}(G|GR|KG|ML|CL|LT)\.?$", RegexOptions.IgnoreCase))
+            return true;
+        if (TryParseQuantity(parts[index], out _) && index + 1 < parts.Count)
+        {
+            var next = Fold(parts[index + 1].Trim('.', ',', ':')).ToUpperInvariant();
+            if (WeightTokens.Contains(next))
+                return true;
+        }
+
+        return false;
     }
 
     private static List<decimal> ExtractMoney(string line)
