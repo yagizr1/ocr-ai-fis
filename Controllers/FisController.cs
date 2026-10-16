@@ -69,7 +69,7 @@ public sealed class FisController : ControllerBase
         {
             throw;
         }
-        catch (InvalidOperationException exception)
+        catch (Exception exception) when (exception is InvalidOperationException or System.Text.Json.JsonException)
         {
             _logger.LogWarning(exception, "Ollama yapılandırması başarısız. OCR ayrıştırması kullanılacak.");
             DocumentValidation.ReconcileTotals(document);

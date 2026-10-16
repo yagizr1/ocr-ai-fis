@@ -54,7 +54,8 @@ public sealed class OllamaService : IOllamaService
         var prompt = BuildPrompt(rawText);
         try
         {
-            var options = new { temperature = 0, num_predict = 768, num_ctx = 4096 };
+            // 2048: çok kalemli fişlerde JSON'un yarıda kesilmesini azaltır
+            var options = new { temperature = 0, num_predict = 2048, num_ctx = 4096 };
             var payload = useJsonFormat
                 ? (object)new
                 {
@@ -115,9 +116,27 @@ public sealed class OllamaService : IOllamaService
 
     public static OllamaReceipt ParseReceipt(string modelText)
     {
-        var json = ExtractJson(modelText);
-        var receipt = JsonSerializer.Deserialize<OllamaReceipt>(json, JsonOptions)
-            ?? throw new InvalidOperationException("Model JSON'u çözümlenemedi.");
+        OllamaReceipt? receipt;
+        try
+        {
+            receipt = DeserializeReceipt(ExtractJson(modelText));
+        }
+        catch (Exception first) when (first is JsonException or InvalidOperationException)
+        {
+            try
+            {
+                receipt = DeserializeReceipt(RepairTruncatedJson(ExtractJsonLoose(modelText)));
+            }
+            catch (Exception second) when (second is JsonException or InvalidOperationException)
+            {
+                throw new InvalidOperationException(
+                    "Model JSON yanıtı yarım veya geçersiz (kalem listesi kesilmiş olabilir).",
+                    second);
+            }
+        }
+
+        if (receipt is null)
+            throw new InvalidOperationException("Model JSON'u çözümlenemedi.");
 
         receipt.BelgeTuru = FisReadResult.NormalizeType(receipt.BelgeTuru);
         receipt.FirmaAdi = Collapse(receipt.FirmaAdi);
@@ -199,6 +218,9 @@ public sealed class OllamaService : IOllamaService
         OCR metni:
         """ + rawText;
 
+    private static OllamaReceipt? DeserializeReceipt(string json) =>
+        JsonSerializer.Deserialize<OllamaReceipt>(json, JsonOptions);
+
     private static string ExtractJson(string text)
     {
         var start = text.IndexOf('{');
@@ -206,6 +228,67 @@ public sealed class OllamaService : IOllamaService
         if (start < 0 || end <= start)
             throw new InvalidOperationException("Model JSON döndürmedi.");
         return text[start..(end + 1)];
+    }
+
+    private static string ExtractJsonLoose(string text)
+    {
+        var start = text.IndexOf('{');
+        if (start < 0)
+            throw new InvalidOperationException("Model JSON döndürmedi.");
+        var end = text.LastIndexOf('}');
+        return end > start ? text[start..(end + 1)] : text[start..];
+    }
+
+    /// <summary>
+    /// Model num_predict dolunca yarım kalan JSON'u mümkünse kapatır.
+    /// </summary>
+    private static string RepairTruncatedJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            throw new InvalidOperationException("Model JSON boş.");
+
+        var text = json.Trim();
+        // Son tamamlanmamış kalem nesnesini at: son tam '}' sonrasını kırp
+        var lastBrace = text.LastIndexOf('}');
+        if (lastBrace > 0)
+            text = text[..(lastBrace + 1)];
+
+        text = text.TrimEnd();
+        while (text.EndsWith(','))
+            text = text[..^1].TrimEnd();
+
+        var openBrace = 0;
+        var openBracket = 0;
+        var inString = false;
+        var escape = false;
+        foreach (var ch in text)
+        {
+            if (inString)
+            {
+                if (escape) { escape = false; continue; }
+                if (ch == '\\') { escape = true; continue; }
+                if (ch == '"') inString = false;
+                continue;
+            }
+
+            switch (ch)
+            {
+                case '"': inString = true; break;
+                case '{': openBrace++; break;
+                case '}': openBrace--; break;
+                case '[': openBracket++; break;
+                case ']': openBracket--; break;
+            }
+        }
+
+        if (inString)
+            text += "\"";
+
+        // Eksik kapanışları ekle (önce diziler, sonra nesneler)
+        while (openBracket > 0) { text += "]"; openBracket--; }
+        while (openBrace > 0) { text += "}"; openBrace--; }
+
+        return text;
     }
 
     private static string NormalizeDate(string? value)
