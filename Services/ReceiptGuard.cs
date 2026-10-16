@@ -65,6 +65,7 @@ public static class ReceiptGuard
         if (ocr.SubTotal > 0 && receipt.AraToplam <= 0)
             receipt.AraToplam = ocr.SubTotal;
 
+        receipt.Kalemler ??= [];
         var lineSum = decimal.Round(receipt.Kalemler.Sum(line => line.Toplam), 2, MidpointRounding.AwayFromZero);
         if (receipt.AraToplam <= 0)
             receipt.AraToplam = lineSum;
