@@ -66,8 +66,12 @@ public static class DocumentValidation
             else if (line.Quantity > 0 && line.UnitPrice > 0)
             {
                 var expected = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero);
-                if (Math.Abs(expected - line.Amount) <= 0.05m)
+                if (line.Amount <= 0 || Math.Abs(expected - line.Amount) <= 0.15m)
                     line.Amount = expected;
+                else if (line.Quantity == 1 && line.Amount > 0)
+                    line.UnitPrice = line.Amount; // market fişi satır tutarı = fiyat
+                else if (line.Amount > 0)
+                    line.UnitPrice = decimal.Round(line.Amount / line.Quantity, 2, MidpointRounding.AwayFromZero);
             }
         }
 

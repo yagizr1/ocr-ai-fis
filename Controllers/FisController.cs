@@ -49,10 +49,18 @@ public sealed class FisController : ControllerBase
         try
         {
             var receipt = await _ollama.StructureAsync(document.RawText, cancellationToken);
-            var warning = MergeBlanks(document, receipt);
+            var warning = ReceiptGuard.AlignWithOcr(document, receipt);
             var result = FisReadResult.FromReceipt(document, receipt, warning);
             var dto = ToDto(result);
             DocumentValidation.ReconcileTotals(dto);
+            // OCR toplamı varsa nihai otorite
+            if (document.Total > 0)
+                dto.Total = document.Total;
+            if (document.TaxTotal > 0)
+                dto.TaxTotal = document.TaxTotal;
+            if (document.SubTotal > 0 && dto.SubTotal <= 0)
+                dto.SubTotal = document.SubTotal;
+
             var messages = DocumentValidation.Validate(dto);
             result = FisReadResult.FromDocument(dto);
             result.Warning = warning;
@@ -95,73 +103,4 @@ public sealed class FisController : ControllerBase
         SourceFileName = result.SourceFileName,
         Lines = result.Lines
     };
-
-    private static string? MergeBlanks(FiscalDocumentDto ocr, OllamaReceipt receipt)
-    {
-        var filled = false;
-        if (string.IsNullOrWhiteSpace(receipt.BelgeTuru) && !string.IsNullOrWhiteSpace(ocr.DocumentType))
-        {
-            receipt.BelgeTuru = ocr.DocumentType;
-            filled = true;
-        }
-
-        if (string.IsNullOrWhiteSpace(receipt.FirmaAdi) && !string.IsNullOrWhiteSpace(ocr.Company))
-        {
-            receipt.FirmaAdi = ocr.Company;
-            filled = true;
-        }
-
-        if (string.IsNullOrWhiteSpace(receipt.VergiNo) && !string.IsNullOrWhiteSpace(ocr.TaxNumber))
-        {
-            receipt.VergiNo = ocr.TaxNumber;
-            filled = true;
-        }
-
-        if (string.IsNullOrWhiteSpace(receipt.Tarih) && !string.IsNullOrWhiteSpace(ocr.Date))
-        {
-            receipt.Tarih = ocr.Date;
-            filled = true;
-        }
-
-        if (string.IsNullOrWhiteSpace(receipt.FisNo) && !string.IsNullOrWhiteSpace(ocr.DocumentNo))
-        {
-            receipt.FisNo = ocr.DocumentNo;
-            filled = true;
-        }
-
-        if (receipt.Kalemler.Count == 0 && ocr.Lines.Count > 0)
-        {
-            receipt.Kalemler = ocr.Lines.Select(line => new OllamaLine
-            {
-                UrunAdi = line.Description,
-                Adet = line.Quantity,
-                Birim = line.Unit,
-                BirimFiyat = line.UnitPrice,
-                Toplam = line.Amount
-            }).ToList();
-            filled = true;
-        }
-
-        if (receipt.KdvToplam <= 0 && ocr.TaxTotal > 0)
-        {
-            receipt.KdvToplam = ocr.TaxTotal;
-            filled = true;
-        }
-
-        if (receipt.AraToplam <= 0 && ocr.SubTotal > 0)
-        {
-            receipt.AraToplam = ocr.SubTotal;
-            filled = true;
-        }
-
-        if (receipt.GenelToplam <= 0 && ocr.Total > 0)
-        {
-            receipt.GenelToplam = ocr.Total;
-            filled = true;
-        }
-
-        return filled
-            ? "Bazı alanlar model yanıtında yoktu ve OCR metninden tamamlandı."
-            : null;
-    }
 }

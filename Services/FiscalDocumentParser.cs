@@ -440,12 +440,41 @@ public static class FiscalDocumentParser
         return best?.Amount;
     }
 
+    private static readonly Regex QtyPrefix = new(
+        @"^\s*(\d{1,4})\s*[xX×]\s*(\d+[.,]\d{2})\s*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private static List<FiscalLineDto> FindLineItems(IReadOnlyList<string> lines, IReadOnlyList<string> foldedLines)
     {
         var items = new List<FiscalLineDto>();
-        for (var i = 0; i < lines.Count && items.Count < 40; i++)
+        for (var i = 0; i < lines.Count && items.Count < 60; i++)
         {
             if (IsMetaRow(foldedLines[i]) || IsHeading(foldedLines[i]))
+                continue;
+
+            // BİM tarzı: "3 X 1,00" + sonraki ürün satırı
+            var qtyMatch = QtyPrefix.Match(lines[i].Trim());
+            if (qtyMatch.Success && i + 1 < lines.Count
+                && !IsMetaRow(foldedLines[i + 1]) && !IsHeading(foldedLines[i + 1]))
+            {
+                if (TryParseQuantity(qtyMatch.Groups[1].Value, out var qty)
+                    && TryParseMoney(qtyMatch.Groups[2].Value, out var unitPrice))
+                {
+                    var product = ParseLine(lines[i + 1]);
+                    if (product is not null)
+                    {
+                        product.Quantity = qty;
+                        product.UnitPrice = unitPrice;
+                        product.Amount = decimal.Round(qty * unitPrice, 2, MidpointRounding.AwayFromZero);
+                        items.Add(product);
+                        i++;
+                        continue;
+                    }
+                }
+            }
+
+            // Tek başına miktar satırını kalem yapma
+            if (qtyMatch.Success)
                 continue;
 
             var item = ParseLine(lines[i]);

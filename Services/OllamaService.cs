@@ -210,10 +210,18 @@ public sealed class OllamaService : IOllamaService
 
     private static string BuildPrompt(string rawText) =>
         """
-        Aşağıdaki fiş/irsaliye/fatura OCR metnini yapılandır. Yalnızca geçerli JSON döndür.
+        Aşağıdaki fiş/irsaliye/fatura OCR metnini yapılandır. Yalnızca geçerli JSON döndür. Açıklama yazma.
         Şema:
         {"belge_turu":"Fiş|İrsaliye|Fatura|Belge","firma_adi":"string","vergi_no":"string","tarih":"YYYY-MM-DD","fis_no":"string","kalemler":[{"urun_adi":"string","adet":number,"birim":"AD","birim_fiyat":number,"toplam":number}],"ara_toplam":number,"kdv_toplam":number,"genel_toplam":number}
-        Kurallar: satıcı unvanı; KDV/özet satırlarını kalem yapma; sayılarda nokta kullan; uydurma veri ekleme.
+        Zorunlu kurallar:
+        - OCR metninde olmayan ürün, adet veya tutar UYDURMA. Sadece görünen satırları yaz.
+        - genel_toplam fişteki TOPLAM / ÖDENECEK tutarıdır. Yoksa 0.
+        - kdv_toplam fişteki TOPKDV / KDV tutarıdır. Yoksa 0.
+        - TOPLAM, TOPKDV, KREDİ KARTI, NAKİT, Z NO, EKÜ, KASİYER, tarih/saat satırlarını kalem yapma.
+        - "%08" / "%18" KDV oranı satırları kalem değildir.
+        - "3 X 1,00" gibi miktar satırı varsa sonraki ürünle TEK kalem yap: adet=3, birim_fiyat=1.00, toplam=3.00.
+        - Aynı ürün iki kez yazılmışsa iki ayrı kalem olabilir; olmayan ürün ekleme.
+        - Sayıda ondalık ayırıcı nokta. Binlik ayracı kullanma.
 
         OCR metni:
         """ + rawText;
