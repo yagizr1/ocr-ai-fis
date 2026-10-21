@@ -7,7 +7,11 @@ using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
@@ -33,6 +37,11 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddSingleton<IOcrService, OcrService>();
 builder.Services.AddSingleton<IExcelExportService, ExcelExportService>();
 builder.Services.AddSingleton<IDocumentRepository, DocumentRepository>();
+builder.Services.AddSingleton<IRegexFieldExtractor, RegexFieldExtractor>();
+builder.Services.AddScoped<IDocumentPipelineService, DocumentPipelineService>();
+builder.Services.AddSingleton<DocumentJobQueue>();
+builder.Services.AddSingleton<IDocumentJobQueue>(sp => sp.GetRequiredService<DocumentJobQueue>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DocumentJobQueue>());
 
 var app = builder.Build();
 

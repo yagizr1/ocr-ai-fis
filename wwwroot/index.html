@@ -291,14 +291,25 @@
           </div>
 
           <div class="steps" id="read-steps" aria-hidden="true">
-            <span class="step" data-step="queue">1. Dosya</span>
-            <span class="step" data-step="ocr">2. OCR / PDF</span>
-            <span class="step" data-step="ai">3. Yapay zeka</span>
-            <span class="step" data-step="done">4. Tablo</span>
+            <span class="step" data-step="queue">1. Yükleme</span>
+            <span class="step" data-step="ocr">2. OCR</span>
+            <span class="step" data-step="regex">3. Regex</span>
+            <span class="step" data-step="ai">4. AI</span>
+            <span class="step" data-step="done">5. Eşleştirme</span>
+          </div>
+          <div class="panel" id="progress-panel" hidden style="padding:10px 12px;margin-bottom:4px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;">
+              <strong id="progress-label">Hazır</strong>
+              <span class="hint" id="progress-percent">0%</span>
+            </div>
+            <div style="height:8px;background:#e7eef3;border-radius:4px;overflow:hidden;">
+              <div id="progress-bar" style="height:100%;width:0%;background:var(--accent);transition:width .25s ease;"></div>
+            </div>
+            <p class="hint" id="progress-detail" style="margin-top:6px;"></p>
           </div>
 
           <div class="read-bar">
-            <p class="hint" id="read-hint">OCR metni yerel model ile firma, tarih, belge no, kalem, KDV ve toplama ayrılır.</p>
+            <p class="hint" id="read-hint">Hibrit pipeline: OCR → Regex (hızlı alanlar) → yerel AI → doğrulama. UI donmaz.</p>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <button class="btn btn-quiet" id="cancel-btn" type="button" hidden>İptal</button>
               <button class="btn btn-primary" id="read-btn" type="button" disabled>
@@ -479,7 +490,7 @@
     }
 
     function setStep(name) {
-      const order = ["queue", "ocr", "ai", "done"];
+      const order = ["queue", "ocr", "regex", "ai", "done"];
       const idx = order.indexOf(name);
       document.querySelectorAll("#read-steps .step").forEach(el => {
         const step = el.dataset.step;
@@ -488,6 +499,32 @@
         el.classList.toggle("done", i < idx);
       });
       document.getElementById("read-steps").hidden = false;
+    }
+
+    function mapStageToStep(stage) {
+      const s = String(stage || "").toLowerCase();
+      if (s.includes("upload") || s.includes("queued")) return "queue";
+      if (s.includes("ocr")) return "ocr";
+      if (s.includes("regex")) return "regex";
+      if (s.includes("ai") || s.includes("structur")) return "ai";
+      if (s.includes("match") || s.includes("complet")) return "done";
+      if (s.includes("fail")) return "done";
+      return "ocr";
+    }
+
+    function showProgress(status) {
+      const panel = document.getElementById("progress-panel");
+      panel.hidden = false;
+      document.getElementById("progress-label").textContent = status.stageLabel || status.stage || "İşleniyor";
+      const pct = Number(status.progressPercent || 0);
+      document.getElementById("progress-percent").textContent = pct + "%";
+      document.getElementById("progress-bar").style.width = pct + "%";
+      document.getElementById("progress-detail").textContent = status.message || "";
+      setStep(mapStageToStep(status.stage));
+    }
+
+    function hideProgressSoon() {
+      setTimeout(() => { document.getElementById("progress-panel").hidden = true; }, 1200);
     }
 
     function updateStats() {
@@ -843,12 +880,50 @@
       } catch { return "İstek başarısız (" + response.status + ")."; }
     }
 
+    async function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     async function readOne(file) {
       const body = new FormData();
       body.append("file", file, file.name);
-      const response = await fetch("/api/fis/oku", { method: "POST", body, signal: state.abort?.signal });
-      if (!response.ok) throw new Error(await readError(response));
-      return response.json();
+      const enqueue = await fetch("/api/pipeline/jobs", {
+        method: "POST",
+        body,
+        signal: state.abort?.signal
+      });
+      if (!enqueue.ok) throw new Error(await readError(enqueue));
+      const job = await enqueue.json();
+      state.currentJobId = job.jobId;
+      showProgress({
+        stage: job.stage,
+        stageLabel: job.stageLabel,
+        progressPercent: job.progressPercent,
+        message: "İş kuyruğa alındı…"
+      });
+
+      while (true) {
+        if (state.abort?.signal.aborted) {
+          await fetch("/api/pipeline/jobs/" + job.jobId + "/cancel", { method: "POST" }).catch(() => {});
+          throw new DOMException("Aborted", "AbortError");
+        }
+        const poll = await fetch("/api/pipeline/jobs/" + job.jobId, { signal: state.abort?.signal });
+        if (!poll.ok) throw new Error(await readError(poll));
+        const status = await poll.json();
+        showProgress(status);
+        document.getElementById("read-hint").textContent =
+          (status.stageLabel || "İşleniyor") + (status.message ? " — " + status.message : "");
+
+        if (status.stage === "Completed" || status.stage === 6) {
+          if (!status.result) throw new Error("Pipeline sonuç döndürmedi.");
+          hideProgressSoon();
+          return status.result;
+        }
+        if (status.stage === "Failed" || status.stage === 7) {
+          throw new Error(status.error || status.message || "Pipeline başarısız.");
+        }
+        await sleep(700);
+      }
     }
 
     async function readDocument() {
@@ -867,10 +942,9 @@
           state.id = null;
           state.sourceFileName = item.file.name;
           showPreview(index);
-          setStep("ocr");
+          setStep("queue");
           document.getElementById("read-hint").textContent =
-            "Okunuyor (" + (i + 1) + "/" + targets.length + "): " + item.file.name + " — OCR ve AI çalışıyor…";
-          setStep("ai");
+            "Pipeline (" + (i + 1) + "/" + targets.length + "): " + item.file.name;
           lastDoc = await readOne(item.file);
           item.status = "done";
           applyDocument(lastDoc, false);
@@ -901,6 +975,7 @@
       } finally {
         state.busy = false;
         state.abort = null;
+        state.currentJobId = null;
         renderQueue();
         updateActions();
       }

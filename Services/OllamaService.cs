@@ -39,14 +39,31 @@ public sealed class OllamaService : IOllamaService
         if (string.IsNullOrWhiteSpace(rawText))
             throw new InvalidOperationException("Yapılandırılacak OCR metni boş.");
 
-        // Kısa metin + düşük num_predict = CPU'da belirgin hız kazanımı
         var clipped = rawText.Length > 8000 ? rawText[..8000] : rawText;
-        using var response = await SendAsync(clipped, useJsonFormat: true, cancellationToken);
-        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest)
-            return await ReadReceiptAsync(response, cancellationToken);
 
+        // 1) Strict JSON mode
+        try
+        {
+            using var response = await SendAsync(clipped, useJsonFormat: true, cancellationToken);
+            if (response.StatusCode != System.Net.HttpStatusCode.BadRequest)
+                return await ReadReceiptAsync(response, cancellationToken);
+        }
+        catch (InvalidOperationException first)
+        {
+            _logger.LogWarning(first, "JSON format isteği başarısız; format=json olmadan yeniden denenecek.");
+        }
+
+        // 2) Retry without format constraint + repair parser
         using var retry = await SendAsync(clipped, useJsonFormat: false, cancellationToken);
-        return await ReadReceiptAsync(retry, cancellationToken);
+        try
+        {
+            return await ReadReceiptAsync(retry, cancellationToken);
+        }
+        catch (InvalidOperationException second)
+        {
+            _logger.LogWarning(second, "İkinci LLM denemesi de başarısız.");
+            throw;
+        }
     }
 
     private async Task<HttpResponseMessage> SendAsync(string rawText, bool useJsonFormat, CancellationToken cancellationToken)
